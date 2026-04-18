@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Streamlit
+.streamlit/
+
+# Excel/Data (Optional: keep them if needed, but usually large data is ignored. 
+# Here they are small so I will NOT ignore them since the app needs them.)
+# *.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
