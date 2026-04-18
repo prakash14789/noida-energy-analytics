@@ -1085,6 +1085,65 @@ def tab_roi(hh):
     )
 
 
+def tab_simulator(hh):
+    st.markdown('<div class="section-title">What-If Scenario Simulator</div>',
+                unsafe_allow_html=True)
+    
+    st.markdown("Experiment with upgrades and habit changes to see how much you can save on your bill.")
+
+    c1, c2 = st.columns([1, 1.5])
+
+    with c1:
+        st.markdown('<div class="section-title">Step 1: Base Consumption</div>', unsafe_allow_html=True)
+        base_units = st.number_input("Average Monthly Units (kWh)", value=450, step=50)
+        base_load  = st.slider("Current Connected Load (kW)", 1, 10, 3, key="sim_load")
+        
+        st.markdown('<div class="section-title">Step 2: Apply Upgrades</div>', unsafe_allow_html=True)
+        ac_upgrade = st.slider("Replace old appliances with 5-Star (%)", 0, 50, 0, help="Typically saves 20-30% on AC load version.")
+        habit_change = st.slider("Behavioral changes/Habits (%)", 0, 20, 0, help="Turning off lights/AC when not in room.")
+        solar_add  = st.slider("Add New Solar Capacity (kW)", 0, 15, 0)
+        
+    with c2:
+        st.markdown('<div class="section-title">The Impact</div>', unsafe_allow_html=True)
+        
+        # 1. Base Bill
+        base_bill = calculate_uppcl_bill(base_units, base_load)
+        
+        # 2. Simulated Units
+        efficiency_gain = (ac_upgrade + habit_change) / 100
+        reduced_units = base_units * (1 - efficiency_gain)
+        # Solar generation approx 120 units/month per kW
+        solar_gen = solar_add * 120
+        sim_units = max(0, reduced_units - solar_gen)
+        
+        # 3. Simulated Bill
+        sim_bill = calculate_uppcl_bill(sim_units, base_load)
+        
+        monthly_saving = base_bill - sim_bill
+        annual_saving = monthly_saving * 12
+        
+        sc1, sc2 = st.columns(2)
+        sc1.metric("Monthly Savings", f"₹{monthly_saving:,.0f}", delta=f"{(monthly_saving/base_bill*100):.1f}% reduction", delta_color="normal")
+        sc2.metric("Annual Total Savings", f"₹{annual_saving:,.0f}")
+
+        # Comparison Chart
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name="Current Bill", x=["Electricity Bill"], y=[base_bill], marker_color=COLORS['gray']))
+        fig.add_trace(go.Bar(name="Optimized Bill", x=["Electricity Bill"], y=[sim_bill], marker_color=COLORS['teal']))
+        
+        apply_layout(fig, height=300, yaxis_title="Rupees (₹)", barmode='group', title="Current vs Optimized Monthly Bill")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown(
+        f'<div class="insight-box" style="border-left-color: {COLORS["purple"]}">'
+        f'<b>Simulation Verdict:</b> By applying these changes, your monthly consumption drops from <b>{base_units}</b> to <b>{sim_units:.0f}</b> kWh. '
+        f'This moves your bill into a lower tariff slab, resulting in an annual pocket saving of <b>₹{annual_saving:,.0f}</b>. '
+        f'{"Great job! You are becoming energy independent." if solar_add > 0 else "Tip: Adding solar could bring this bill down even further."}'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
 def tab_rawdata(hh, comm):
     st.markdown('<div class="section-title">Raw datasets</div>',
                 unsafe_allow_html=True)
@@ -1132,6 +1191,7 @@ def main():
         "Overview",
         "Regional Analysis",
         "Solar ROI",
+        "Scenario Simulator",
         "Forecast",
         "Model Comparison",
         "Feature Analysis",
@@ -1143,12 +1203,13 @@ def main():
     with tabs[0]: tab_overview(hh, comm)
     with tabs[1]: tab_regional(hh, comm)
     with tabs[2]: tab_roi(hh)
-    with tabs[3]: tab_forecast(hh, comm, ctrl)
-    with tabs[4]: tab_models(hh, comm, models)
-    with tabs[5]: tab_features(hh, comm, models)
-    with tabs[6]: tab_predict(hh, comm, models, ctrl)
-    with tabs[7]: tab_street()
-    with tabs[8]: tab_rawdata(hh, comm)
+    with tabs[3]: tab_simulator(hh)
+    with tabs[4]: tab_forecast(hh, comm, ctrl)
+    with tabs[5]: tab_models(hh, comm, models)
+    with tabs[6]: tab_features(hh, comm, models)
+    with tabs[7]: tab_predict(hh, comm, models, ctrl)
+    with tabs[8]: tab_street()
+    with tabs[9]: tab_rawdata(hh, comm)
 
     st.markdown(
         '<div class="footer">'
