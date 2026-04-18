@@ -323,12 +323,31 @@ def sidebar(hh, comm):
         est_load  = st.slider("Connected Load (kW)", 1, 10, 2)
         
         bill = calculate_uppcl_bill(est_units, est_load)
+        fixed_c = est_load * 110
+        # Re-calc for breakdown display
+        if est_units <= 150: e_c = est_units * 5.50
+        elif est_units <= 300: e_c = (150 * 5.50) + (est_units - 150) * 6.00
+        elif est_units <= 500: e_c = (150 * 5.50) + (150 * 6.00) + (est_units - 300) * 6.50
+        else: e_c = (150 * 5.50) + (150 * 6.00) + (200 * 6.50) + (est_units - 500) * 7.00
         
+        tax = (fixed_c + e_c) * 0.15
+
         st.markdown(
-            f'<div style="background:rgba(29,158,117,0.1); padding:15px; border-radius:10px; border:1px solid #1D9E75">'
-            f'<span style="font-size:0.8rem; color:#888;">Estimated Monthly Bill</span><br>'
-            f'<span style="font-size:1.5rem; font-weight:bold; color:#1D9E75;">₹{bill:,.0f}</span>'
-            f'</div>',
+            f'''<div style="background:rgba(29,158,117,0.05); padding:15px; border-radius:10px; border:1px solid #1D9E75">
+                <div style="font-size:0.75rem; color:#888; display:flex; justify-content:space-between;">
+                    <span>Fixed Charge:</span><span>₹{fixed_c:,.0f}</span>
+                </div>
+                <div style="font-size:0.75rem; color:#888; display:flex; justify-content:space-between;">
+                    <span>Energy Charge:</span><span>₹{e_c:,.0f}</span>
+                </div>
+                <div style="font-size:0.75rem; color:#888; display:flex; justify-content:space-between; border-bottom:1px solid #eee; margin-bottom:5px; padding-bottom:5px;">
+                    <span>Taxes (15%):</span><span>₹{tax:,.0f}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:0.8rem; font-weight:bold; color:#1D9E75;">Total Bill:</span>
+                    <span style="font-size:1.4rem; font-weight:bold; color:#1D9E75;">₹{bill:,.0f}</span>
+                </div>
+            </div>''',
             unsafe_allow_html=True
         )
         st.markdown("<br>", unsafe_allow_html=True)
