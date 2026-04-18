@@ -6,6 +6,7 @@ A Streamlit application for analyzing and forecasting energy consumption (Househ
 - **Dataset Summary**: Descriptive statistics of electricity consumption.
 - **Regional Analysis**: Discover peak demand sectors and commercial zones across Noida.
 - **Solar ROI Calculator**: Interactive tool to estimate solar installation payback periods and 20-year savings.
+- **UPPCL Bill Estimator**: Real-time slab-wise bill calculation (sidebar) based on Noida electricity tariffs.
 - **Forecasting Models**: ARIMA, SARIMA, LSTM, Linear Regression, and XGBoost.
 - **Feature analysis**: Impact of room count, solar panels, and seasonality.
 - **Interactive Predictor**: Predict future consumption based on custom user profiles.

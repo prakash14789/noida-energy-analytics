@@ -259,6 +259,23 @@ def metrics(y_true, y_pred):
     return {'MSE': round(mse, 2), 'RMSE': round(rmse, 2),
             'MAE': round(mae, 2), 'R²': round(r2, 4)}
 
+def calculate_uppcl_bill(units, load_kw=2):
+    """UPPCL Urban Domestic slab-based calculation."""
+    fixed_charge = load_kw * 110
+    energy_charge = 0
+    if units <= 150:
+        energy_charge = units * 5.50
+    elif units <= 300:
+        energy_charge = (150 * 5.50) + (units - 150) * 6.00
+    elif units <= 500:
+        energy_charge = (150 * 5.50) + (150 * 6.00) + (units - 300) * 6.50
+    else:
+        energy_charge = (150 * 5.50) + (150 * 6.00) + (200 * 6.50) + (units - 500) * 7.00
+    
+    # Approx 15% (Regulatory + Duty + Tax)
+    total = (fixed_charge + energy_charge) * 1.15
+    return total
+
 PLOTLY_LAYOUT = dict(
     font_family="DM Sans",
     plot_bgcolor="white",
@@ -301,6 +318,21 @@ def sidebar(hh, comm):
         pred_month = st.selectbox("Predict for month", MONTH_ORDER,
                                   index=4)
 
+        st.markdown("### 💰 Bill Estimator (UPPCL)")
+        est_units = st.number_input("Enter monthly units (kWh)", value=300, step=50)
+        est_load  = st.slider("Connected Load (kW)", 1, 10, 2)
+        
+        bill = calculate_uppcl_bill(est_units, est_load)
+        
+        st.markdown(
+            f'<div style="background:rgba(29,158,117,0.1); padding:15px; border-radius:10px; border:1px solid #1D9E75">'
+            f'<span style="font-size:0.8rem; color:#888;">Estimated Monthly Bill</span><br>'
+            f'<span style="font-size:1.5rem; font-weight:bold; color:#1D9E75;">₹{bill:,.0f}</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown("<br>", unsafe_allow_html=True)
+
         st.markdown("---")
         st.markdown(
             "<div style='font-size:0.75rem;color:#888;line-height:1.6'>"
@@ -315,7 +347,7 @@ def sidebar(hh, comm):
         dataset=dataset, show_lr=show_lr, show_gb=show_gb,
         show_arima=show_arima, show_sarima=show_sarima, show_lstm=show_lstm,
         horizon=horizon, rooms=rooms, solar=solar, sol_cap=sol_cap,
-        h_type=h_type, pred_month=pred_month,
+        h_type=h_type, pred_month=pred_month, est_units=est_units, est_load=est_load
     )
 
 
