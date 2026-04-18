@@ -925,6 +925,58 @@ def tab_street():
     )
 
 
+def tab_regional(hh, comm):
+    st.markdown('<div class="section-title">Regional Consumption Analysis</div>',
+                unsafe_allow_html=True)
+    
+    col_a, col_b = st.columns(2)
+    
+    with col_a:
+        st.markdown('<div class="section-title">Household: Top 10 Sectors by Demand</div>',
+                    unsafe_allow_html=True)
+        hh_sector = hh.groupby('Sector')['Units Consumed'].sum().sort_values(ascending=False).head(10)
+        fig_h = px.bar(x=hh_sector.values, y=hh_sector.index, orientation='h',
+                       color=hh_sector.values,
+                       color_continuous_scale=['#9FE1CB','#1D9E75'],
+                       labels={'x': 'Total kWh', 'y': 'Sector'})
+        fig_h.update_layout(**PLOTLY_LAYOUT, height=400, coloraxis_showscale=False)
+        st.plotly_chart(fig_h, use_container_width=True)
+        
+    with col_b:
+        st.markdown('<div class="section-title">Commercial: Top 10 Areas by Demand</div>',
+                    unsafe_allow_html=True)
+        comm_area = comm.groupby('Area')['Units Consumed (After Solar)'].sum().sort_values(ascending=False).head(10)
+        fig_c = px.bar(x=comm_area.values, y=comm_area.index, orientation='h',
+                       color=comm_area.values,
+                       color_continuous_scale=['#BBD9F2','#378ADD'],
+                       labels={'x': 'Total kWh', 'y': 'Area'})
+        fig_c.update_layout(**PLOTLY_LAYOUT, height=400, coloraxis_showscale=False)
+        st.plotly_chart(fig_c, use_container_width=True)
+
+    st.markdown('<div class="section-title">Sector Comparison Metrics</div>',
+                unsafe_allow_html=True)
+    
+    top_sector = hh_sector.index[0]
+    avg_top = hh[hh['Sector'] == top_sector]['Units Consumed'].mean()
+    top_area = comm_area.index[0]
+    avg_comm_top = comm[comm['Area'] == top_area]['Units Consumed (After Solar)'].mean()
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Highest Demand Sector", top_sector)
+    c2.metric("Avg Consumption (Top Sector)", f"{avg_top:.0f} kWh")
+    c3.metric("Highest Commercial Area", top_area)
+    c4.metric("Avg Comm. Consumption", f"{avg_comm_top:.0f} kWh")
+
+    st.markdown(
+        '<div class="insight-box">'
+        f'<b>Market Intelligence:</b> <b>{top_sector}</b> is currently the peak load zone for residential consumption in the dataset. '
+        f'For commercial activities, <b>{top_area}</b> shows the highest energy density. '
+        'This regional variance suggests that infrastructure upgrades should be prioritized in these high-growth zones.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
 def tab_rawdata(hh, comm):
     st.markdown('<div class="section-title">Raw datasets</div>',
                 unsafe_allow_html=True)
@@ -970,6 +1022,7 @@ def main():
 
     tabs = st.tabs([
         "Overview",
+        "Regional Analysis",
         "Forecast",
         "Model Comparison",
         "Feature Analysis",
@@ -979,12 +1032,13 @@ def main():
     ])
 
     with tabs[0]: tab_overview(hh, comm)
-    with tabs[1]: tab_forecast(hh, comm, ctrl)
-    with tabs[2]: tab_models(hh, comm, models)
-    with tabs[3]: tab_features(hh, comm, models)
-    with tabs[4]: tab_predict(hh, comm, models, ctrl)
-    with tabs[5]: tab_street()
-    with tabs[6]: tab_rawdata(hh, comm)
+    with tabs[1]: tab_regional(hh, comm)
+    with tabs[2]: tab_forecast(hh, comm, ctrl)
+    with tabs[3]: tab_models(hh, comm, models)
+    with tabs[4]: tab_features(hh, comm, models)
+    with tabs[5]: tab_predict(hh, comm, models, ctrl)
+    with tabs[6]: tab_street()
+    with tabs[7]: tab_rawdata(hh, comm)
 
     st.markdown(
         '<div class="footer">'
