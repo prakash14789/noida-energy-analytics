@@ -977,6 +977,63 @@ def tab_regional(hh, comm):
     )
 
 
+def tab_roi(hh):
+    st.markdown('<div class="section-title">Solar ROI & Payback Calculator</div>',
+                unsafe_allow_html=True)
+
+    col_l, col_r = st.columns([1, 2])
+
+    with col_l:
+        st.markdown('<div class="section-title">Investment Inputs</div>', unsafe_allow_html=True)
+        cost_per_kw = st.number_input("Installation Cost per kW (₹)", value=55000, step=5000)
+        capacity    = st.slider("System Capacity (kW)", 1, 20, 5)
+        tariff      = st.number_input("Electricity Tariff (₹/kWh)", value=6.5, step=0.5)
+        maintenance = st.slider("Annual Maintenance (% of cost)", 0.0, 5.0, 1.0) / 100
+        
+        total_investment = cost_per_kw * capacity
+        st.info(f"**Total Investment:** ₹{total_investment:,.0f}")
+
+    with col_r:
+        st.markdown('<div class="section-title">Financial Performance</div>', unsafe_allow_html=True)
+        # Average solar generation in Noida is ~4 kWh per kWp per day
+        daily_gen = capacity * 4 
+        annual_gen = daily_gen * 365
+        annual_savings = annual_gen * tariff
+        annual_maint_cost = total_investment * maintenance
+        net_annual_savings = annual_savings - annual_maint_cost
+        
+        payback_years = total_investment / net_annual_savings if net_annual_savings > 0 else 0
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Annual Generation", f"{annual_gen:,.0f} kWh")
+        c2.metric("Annual Savings", f"₹{annual_savings:,.0f}")
+        c3.metric("Payback Period", f"{payback_years:.1f} Years")
+
+        # Visualization
+        years = list(range(0, 21))
+        cumulative_cashflow = [-(total_investment)]
+        for y in range(1, 21):
+            cumulative_cashflow.append(cumulative_cashflow[-1] + net_annual_savings)
+            
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=years, y=cumulative_cashflow, mode='lines+markers',
+                                 name='Net Cash Flow (Cumulative)',
+                                 line=dict(color=COLORS['teal'], width=3)))
+        fig.add_hline(y=0, line_dash="dash", line_color=COLORS['red'])
+        
+        apply_layout(fig, height=350, yaxis_title="Cumulative Balance (₹)",
+                     xaxis_title="Year", title="20-Year Financial Projection")
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown(
+        '<div class="insight-box">'
+        f'<b>Verdict:</b> With a <b>{payback_years:.1f}-year payback</b>, solar is a highly viable investment for Noida homeowners. '
+        f'Over 20 years, this {capacity}kW system will generate approximately <b>₹{net_annual_savings * 20 / 1e5:.1f} Lakhs</b> in net savings.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
 def tab_rawdata(hh, comm):
     st.markdown('<div class="section-title">Raw datasets</div>',
                 unsafe_allow_html=True)
@@ -1023,6 +1080,7 @@ def main():
     tabs = st.tabs([
         "Overview",
         "Regional Analysis",
+        "Solar ROI",
         "Forecast",
         "Model Comparison",
         "Feature Analysis",
@@ -1033,12 +1091,13 @@ def main():
 
     with tabs[0]: tab_overview(hh, comm)
     with tabs[1]: tab_regional(hh, comm)
-    with tabs[2]: tab_forecast(hh, comm, ctrl)
-    with tabs[3]: tab_models(hh, comm, models)
-    with tabs[4]: tab_features(hh, comm, models)
-    with tabs[5]: tab_predict(hh, comm, models, ctrl)
-    with tabs[6]: tab_street()
-    with tabs[7]: tab_rawdata(hh, comm)
+    with tabs[2]: tab_roi(hh)
+    with tabs[3]: tab_forecast(hh, comm, ctrl)
+    with tabs[4]: tab_models(hh, comm, models)
+    with tabs[5]: tab_features(hh, comm, models)
+    with tabs[6]: tab_predict(hh, comm, models, ctrl)
+    with tabs[7]: tab_street()
+    with tabs[8]: tab_rawdata(hh, comm)
 
     st.markdown(
         '<div class="footer">'
