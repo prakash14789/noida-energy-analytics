@@ -257,4 +257,14 @@ PLOTLY_LAYOUT = dict(
 def apply_layout(fig, **kwargs):
     fig.update_layout(**PLOTLY_LAYOUT, **kwargs)
     return fig
-    
+
+MONTH_ORDER = ['January','February','March','April','May','June',
+               'July','August','September','October','November','December']
+MONTH_MAP   = {m: i+1 for i, m in enumerate(MONTH_ORDER)}
+MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+COLORS = {
+    'teal':   '#1D9E75', 'blue':  '#378ADD', 'amber': '#BA7517',
+    'coral':  '#D85A30', 'purple':'#7F77DD', 'pink':  '#D4537E',
+    'gray':   '#888780', 'green': '#639922', 'red':   '#E24B4A',
+}
