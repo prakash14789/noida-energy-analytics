@@ -161,7 +161,7 @@ def tab_overview(hh, comm):
         fig = px.bar(x=biz.values, y=biz.index, orientation='h',
                      color=biz.values,
                      color_continuous_scale=['#9FE1CB','#0F6E56'])
-        fig.update_layout(**PLOTLY_LAYOUT, height=280,
+        apply_layout(fig, height=280,
                           coloraxis_showscale=False,
                           xaxis_title="Avg kWh / month")
         st.plotly_chart(fig, use_container_width=True)
@@ -708,7 +708,7 @@ def tab_regional(hh, comm):
                        color=hh_sector.values,
                        color_continuous_scale=['#9FE1CB','#1D9E75'],
                        labels={'x': 'Total kWh', 'y': 'Sector'})
-        fig_h.update_layout(**PLOTLY_LAYOUT, height=400, coloraxis_showscale=False)
+        apply_layout(fig_h, height=400, coloraxis_showscale=False)
         st.plotly_chart(fig_h, use_container_width=True)
         
     with col_b:
@@ -719,7 +719,7 @@ def tab_regional(hh, comm):
                        color=comm_area.values,
                        color_continuous_scale=['#BBD9F2','#378ADD'],
                        labels={'x': 'Total kWh', 'y': 'Area'})
-        fig_c.update_layout(**PLOTLY_LAYOUT, height=400, coloraxis_showscale=False)
+        apply_layout(fig_c, height=400, coloraxis_showscale=False)
         st.plotly_chart(fig_c, use_container_width=True)
 
     st.markdown('<div class="section-title">Sector Comparison Metrics</div>',
