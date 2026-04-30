@@ -859,6 +859,95 @@ def tab_simulator(hh):
         unsafe_allow_html=True
     )
 
+def tab_3d_map(hh, comm):
+    import pydeck as pdk
+    st.markdown('<div class="section-title">3D Energy Consumption Map</div>',
+                unsafe_allow_html=True)
+    
+    # Mapping sectors to coordinates (Approximate centers of Noida/Greater Noida sectors)
+    loc_map = {
+        'Gamma 1': [28.4744, 77.5029],
+        'Delta 1': [28.4833, 77.5144],
+        'Sector 137': [28.5147, 77.4000],
+        'Sector 18': [28.5670, 77.3210],
+        'Sector 50': [28.5630, 77.3700],
+        'Beta 2': [28.4680, 77.5140],
+        'Sector 62': [28.6180, 77.3590],
+        'Alpha 1': [28.4680, 77.5020],
+        'Zeta 1': [28.4550, 77.5300],
+        'Sector 75': [28.5680, 77.3910],
+        'Sector 16': [28.5780, 77.3150],
+        'Sector 63': [28.6250, 77.3820],
+        'Sector 132': [28.5080, 77.3720],
+        'Knowledge Park': [28.4540, 77.4890]
+    }
+
+    # Household data aggregation
+    hh_map = hh.groupby('Sector')['Units Consumed'].sum().reset_index()
+    hh_map['lat'] = hh_map['Sector'].map(lambda x: loc_map.get(x, [0,0])[0])
+    hh_map['lon'] = hh_map['Sector'].map(lambda x: loc_map.get(x, [0,0])[1])
+    hh_map['type'] = 'Household'
+    hh_map['color'] = [[29, 158, 117, 200]] * len(hh_map) # #1D9E75 (Teal)
+
+    # Commercial data aggregation
+    comm_map = comm.groupby('Area')['Units Consumed (After Solar)'].sum().reset_index()
+    comm_map.rename(columns={'Area': 'Sector', 'Units Consumed (After Solar)': 'Units Consumed'}, inplace=True)
+    comm_map['lat'] = comm_map['Sector'].map(lambda x: loc_map.get(x, [0,0])[0])
+    comm_map['lon'] = comm_map['Sector'].map(lambda x: loc_map.get(x, [0,0])[1])
+    comm_map['type'] = 'Commercial'
+    comm_map['color'] = [[55, 138, 221, 200]] * len(comm_map) # #378ADD (Blue)
+
+    df_map = pd.concat([hh_map, comm_map])
+    df_map = df_map[df_map['lat'] != 0]
+
+    # Normalize height for visualization
+    max_val = df_map['Units Consumed'].max()
+    df_map['elevation'] = (df_map['Units Consumed'] / max_val) * 5000
+
+    view_state = pdk.ViewState(
+        latitude=28.53,
+        longitude=77.39,
+        zoom=11,
+        pitch=45,
+    )
+
+    layer = pdk.Layer(
+        "ColumnLayer",
+        data=df_map,
+        get_position=["lon", "lat"],
+        get_elevation="elevation",
+        elevation_scale=1,
+        radius=400,
+        get_fill_color="color",
+        pickable=True,
+        auto_highlight=True,
+    )
+
+    tooltip = {
+        "html": "<b>Area:</b> {Sector}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {Units Consumed:,.0f} kWh",
+        "style": {"backgroundColor": "#1D9E75", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
+    }
+
+    is_dark = st.get_option("theme.base") == "dark"
+    
+    st.pydeck_chart(pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        tooltip=tooltip,
+        map_style="mapbox://styles/mapbox/dark-v10" if is_dark else "mapbox://styles/mapbox/light-v10"
+    ))
+
+    st.markdown(
+        '<div class="insight-box">'
+        '<b>Geospatial Intelligence:</b> This 3D projection highlights energy consumption hotspots across Noida and Greater Noida. '
+        'The column height represents the total electricity units consumed in each sector. '
+        '<span style="color:#1D9E75; font-weight:bold;">Teal</span> columns denote Residential zones, while '
+        '<span style="color:#378ADD; font-weight:bold;">Blue</span> columns denote Commercial/Industrial zones. '
+        'Areas like <b>Sector 137</b> and <b>Knowledge Park</b> show significant load density due to residential expansion and commercial hubs respectively.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
 def tab_rawdata(hh, comm):
     st.markdown('<div class="section-title">Raw datasets</div>',
                 unsafe_allow_html=True)

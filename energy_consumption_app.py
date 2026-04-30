@@ -1,6 +1,6 @@
 import streamlit as st
 from src.data_processing import load_data, train_models
-from src.ui_tabs import sidebar, tab_overview, tab_forecast, tab_models, tab_features, tab_predict, tab_street, tab_regional, tab_roi, tab_simulator, tab_rawdata
+from src.ui_tabs import sidebar, tab_overview, tab_forecast, tab_models, tab_features, tab_predict, tab_street, tab_regional, tab_roi, tab_simulator, tab_rawdata, tab_3d_map
 
 st.set_page_config(
     page_title="Noida Energy Analytics",
@@ -39,6 +39,7 @@ def main():
 
     tabs = st.tabs([
         "Overview",
+        "3D Energy Map",
         "Regional Analysis",
         "Solar ROI",
         "Scenario Simulator",
@@ -51,15 +52,16 @@ def main():
     ])
 
     with tabs[0]: tab_overview(hh, comm)
-    with tabs[1]: tab_regional(hh, comm)
-    with tabs[2]: tab_roi(hh)
-    with tabs[3]: tab_simulator(hh)
-    with tabs[4]: tab_forecast(hh, comm, ctrl)
-    with tabs[5]: tab_models(hh, comm, models)
-    with tabs[6]: tab_features(hh, comm, models)
-    with tabs[7]: tab_predict(hh, comm, models, ctrl)
-    with tabs[8]: tab_street()
-    with tabs[9]: tab_rawdata(hh, comm)
+    with tabs[1]: tab_3d_map(hh, comm)
+    with tabs[2]: tab_regional(hh, comm)
+    with tabs[3]: tab_roi(hh)
+    with tabs[4]: tab_simulator(hh)
+    with tabs[5]: tab_forecast(hh, comm, ctrl)
+    with tabs[6]: tab_models(hh, comm, models)
+    with tabs[7]: tab_features(hh, comm, models)
+    with tabs[8]: tab_predict(hh, comm, models, ctrl)
+    with tabs[9]: tab_street()
+    with tabs[10]: tab_rawdata(hh, comm)
 
     st.markdown(
         '<div class="footer">'
