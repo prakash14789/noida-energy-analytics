@@ -911,6 +911,7 @@ def tab_3d_map(hh, comm):
     with col_info:
         st.markdown("### Map Controls")
         view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
+        show_labels = st.checkbox("Show Labels", value=True)
         elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
         radius = st.slider("Column Radius", 100, 1000, 500)
 
@@ -950,17 +951,36 @@ def tab_3d_map(hh, comm):
         bearing=-15
     )
 
-    layer = pdk.Layer(
-        "ColumnLayer",
-        data=df_map,
-        get_position=["lon", "lat"],
-        get_elevation="elevation_val",
-        elevation_scale=elevation_scale,
-        radius=radius,
-        get_fill_color="color",
-        pickable=True,
-        auto_highlight=True,
-    )
+    layers = [
+        pdk.Layer(
+            "ColumnLayer",
+            data=df_map,
+            get_position=["lon", "lat"],
+            get_elevation="elevation_val",
+            elevation_scale=elevation_scale,
+            radius=radius,
+            get_fill_color="color",
+            pickable=True,
+            auto_highlight=True,
+        )
+    ]
+
+    if show_labels:
+        is_dark = st.get_option("theme.base") == "dark"
+        layers.append(
+            pdk.Layer(
+                "TextLayer",
+                data=df_map,
+                get_position=["lon", "lat"],
+                get_text="Area",
+                get_size=16,
+                get_color=[255, 255, 255] if is_dark else [0, 0, 0],
+                get_alignment_baseline="'bottom'",
+                get_pixel_offset=[0, -15],
+                background=True,
+                get_background_color=[0, 0, 0, 150] if not is_dark else [255, 255, 255, 150],
+            )
+        )
 
     tooltip = {
         "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {Units Consumed:,.0f} kWh",
@@ -969,7 +989,7 @@ def tab_3d_map(hh, comm):
 
     with col_view:
         st.pydeck_chart(pdk.Deck(
-            layers=[layer],
+            layers=layers,
             initial_view_state=view_state,
             tooltip=tooltip,
             map_style="mapbox://styles/mapbox/dark-v10" if st.get_option("theme.base") == "dark" else "mapbox://styles/mapbox/light-v10"
