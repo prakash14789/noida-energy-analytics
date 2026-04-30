@@ -12,11 +12,6 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
 import warnings
 warnings.filterwarnings("ignore")
-st.set_page_config(
-    page_title="Noida Energy Analytics",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # ---------------- THEME DETECTION ----------------
 theme = st.get_option("theme.base") or "light"
@@ -57,7 +52,7 @@ st.markdown(f"""
 html, body, .stApp {{
     background-color: var(--bg-color) !important;
     color: var(--text-main) !important;
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Inter', sans-serif;
 }}
 
 /* Sidebar Styling */
@@ -67,16 +62,20 @@ section[data-testid="stSidebar"] {{
 }}
 
 section[data-testid="stSidebar"] * {{
-    color: var(--text-main) !important;
+    color: var(--text-main);
 }}
 
-/* Inputs & Form Elements */
+/* Inputs & Form Elements Visibility Fix */
+.stWidgetLabel p, label, .stWidgetLabel, div[data-testid="stMarkdownContainer"] p {{
+    color: var(--text-main) !important;
+    font-weight: 600 !important;
+}}
+
 input, textarea, div[data-baseweb="select"] > div {{
     background-color: var(--bg-color) !important;
     color: var(--text-main) !important;
     border-radius: 8px !important;
     border: 1px solid var(--border-color) !important;
-    transition: all 0.3s ease;
 }}
 
 input:focus, div[data-baseweb="select"] > div:focus-within {{
@@ -124,10 +123,6 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     border-color: var(--primary-light);
 }}
 
-.metric-card:hover::before {{
-    opacity: 1;
-}}
-
 .metric-card .val {{
     font-size: 2.2rem;
     font-weight: 800;
@@ -165,20 +160,11 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     overflow: hidden;
 }}
 
-.main-header::after {{
-    content: '';
-    position: absolute;
-    top: -50%; left: -50%; width: 200%; height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 60%);
-    pointer-events: none;
-}}
-
 .main-header h1 {{
     font-size: 2.5rem;
     font-weight: 800;
     margin-bottom: 1rem;
     color: white !important;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }}
 
 .main-header p {{
@@ -186,6 +172,7 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     opacity: 0.9;
     max-width: 800px;
     margin: 0 auto;
+    color: white !important;
 }}
 
 /* Section Titles */
@@ -219,15 +206,6 @@ button[data-baseweb="tab"][aria-selected="true"] {{
     box-shadow: var(--shadow-sm);
     font-size: 1.05rem;
     line-height: 1.6;
-}}
-
-/* DataFrames / Tables */
-[data-testid="stDataFrame"] {{
-    background-color: var(--card-bg);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-color);
 }}
 
 /* Footer */
