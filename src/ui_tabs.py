@@ -864,22 +864,30 @@ def tab_3d_map(hh, comm):
     st.markdown('<div class="section-title">Geospatial Energy Heatmap (3D)</div>',
                 unsafe_allow_html=True)
     
-    # Mapping sectors to coordinates (Approximate centers)
+    # Mapping sectors to more precise coordinates
     loc_map = {
+        # Greater Noida
         'Gamma 1': [28.4744, 77.5029],
         'Delta 1': [28.4833, 77.5144],
+        'Alpha 1': [28.4680, 77.5020],
+        'Beta 1':  [28.4750, 77.5100],
+        'Beta 2':  [28.4680, 77.5140],
+        'Zeta 1':  [28.4550, 77.5300],
+        'Knowledge Park': [28.4540, 77.4890],
+        'Knowledge Park II': [28.4500, 77.4950],
+        'Knowledge Park III': [28.4580, 77.4850],
+        'Omega 1': [28.4480, 77.5250],
+        'Phi 3': [28.4550, 77.5150],
+        # Noida
         'Sector 137': [28.5147, 77.4000],
         'Sector 18': [28.5670, 77.3210],
         'Sector 50': [28.5630, 77.3700],
-        'Beta 2': [28.4680, 77.5140],
         'Sector 62': [28.6180, 77.3590],
-        'Alpha 1': [28.4680, 77.5020],
-        'Zeta 1': [28.4550, 77.5300],
         'Sector 75': [28.5680, 77.3910],
         'Sector 16': [28.5780, 77.3150],
         'Sector 63': [28.6250, 77.3820],
         'Sector 132': [28.5080, 77.3720],
-        'Knowledge Park': [28.4540, 77.4890]
+        'Sector 150': [28.4450, 77.4450],
     }
 
     # Data aggregation
@@ -894,86 +902,99 @@ def tab_3d_map(hh, comm):
     df_map = pd.concat([hh_map, comm_map])
     df_map['lat'] = df_map['Area'].map(lambda x: loc_map.get(x, [0,0])[0])
     df_map['lon'] = df_map['Area'].map(lambda x: loc_map.get(x, [0,0])[1])
+    
+    # Filter out unmapped areas
     df_map = df_map[df_map['lat'] != 0]
 
-    # Calculate colors based on consumption
+    col_view, col_info = st.columns([3, 1])
+    
+    with col_info:
+        st.markdown("### Map Controls")
+        view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
+        elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
+        radius = st.slider("Column Radius", 100, 1000, 500)
+
+    # Set initial view state based on selection
+    if view_focus == "Greater Noida":
+        initial_lat, initial_lon, initial_zoom = 28.47, 77.50, 12
+    elif view_focus == "Noida":
+        initial_lat, initial_lon, initial_zoom = 28.57, 77.35, 12
+    else:
+        initial_lat, initial_lon, initial_zoom = 28.52, 77.42, 11
+
+    # Calculate colors
     max_c = df_map['Units Consumed'].max()
     min_c = df_map['Units Consumed'].min()
     
     def get_color(val):
-        # Normalize 0-1
         norm = (val - min_c) / (max_c - min_c) if max_c > min_c else 0.5
-        # Color scale: Green (0,255,0) -> Yellow (255,255,0) -> Red (255,0,0)
         if norm < 0.5:
-            # Green to Yellow
             r = int(255 * (norm * 2))
             g = 255
             b = 0
         else:
-            # Yellow to Red
             r = 255
             g = int(255 * (1 - (norm - 0.5) * 2))
             b = 0
-        return [r, g, b, 200]
+        return [r, g, b, 220]
 
     df_map['color'] = df_map['Units Consumed'].apply(get_color)
-    df_map['elevation'] = (df_map['Units Consumed'] / max_c) * 5000
+    # Relative elevation
+    df_map['elevation_val'] = (df_map['Units Consumed'] / max_c) * 100
 
     view_state = pdk.ViewState(
-        latitude=28.53,
-        longitude=77.39,
-        zoom=11,
-        pitch=45,
+        latitude=initial_lat,
+        longitude=initial_lon,
+        zoom=initial_zoom,
+        pitch=55,
+        bearing=-15
     )
 
     layer = pdk.Layer(
         "ColumnLayer",
         data=df_map,
         get_position=["lon", "lat"],
-        get_elevation="elevation",
-        elevation_scale=1,
-        radius=500,
+        get_elevation="elevation_val",
+        elevation_scale=elevation_scale,
+        radius=radius,
         get_fill_color="color",
         pickable=True,
         auto_highlight=True,
     )
 
     tooltip = {
-        "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Consumption:</b> {Units Consumed:,.0f} kWh",
-        "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px"}
+        "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {Units Consumed:,.0f} kWh",
+        "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
-    is_dark = st.get_option("theme.base") == "dark"
-    
-    st.pydeck_chart(pdk.Deck(
-        layers=[layer],
-        initial_view_state=view_state,
-        tooltip=tooltip,
-        map_style="mapbox://styles/mapbox/dark-v10" if is_dark else "mapbox://styles/mapbox/light-v10"
-    ))
+    with col_view:
+        st.pydeck_chart(pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip=tooltip,
+            map_style="mapbox://styles/mapbox/dark-v10" if st.get_option("theme.base") == "dark" else "mapbox://styles/mapbox/light-v10"
+        ))
 
     # Color Legend
     st.markdown("""
-        <div style="display: flex; align-items: center; gap: 20px; justify-content: center; margin-top: 10px; font-size: 0.85rem; font-weight: 600;">
+        <div style="display: flex; align-items: center; gap: 20px; justify-content: center; margin-top: 5px; font-size: 0.85rem; font-weight: 600;">
             <div style="display: flex; align-items: center; gap: 5px;">
-                <div style="width: 15px; height: 15px; background: #00FF00; border-radius: 3px;"></div> Low Consumption
+                <div style="width: 15px; height: 15px; background: #00FF00; border-radius: 3px;"></div> Low Load
             </div>
             <div style="display: flex; align-items: center; gap: 5px;">
-                <div style="width: 15px; height: 15px; background: #FFFF00; border-radius: 3px;"></div> Medium Consumption
+                <div style="width: 15px; height: 15px; background: #FFFF00; border-radius: 3px;"></div> Moderate Load
             </div>
             <div style="display: flex; align-items: center; gap: 5px;">
-                <div style="width: 15px; height: 15px; background: #FF0000; border-radius: 3px;"></div> High Consumption
+                <div style="width: 15px; height: 15px; background: #FF0000; border-radius: 3px;"></div> Critical Load
             </div>
         </div>
     """, unsafe_allow_html=True)
 
     st.markdown(
         '<div class="insight-box">'
-        '<b>Dynamic Heatmap:</b> This 3D map uses a color gradient to represent energy intensity. '
-        '<span style="color:#FF0000; font-weight:bold;">Red columns</span> indicate critical high-consumption zones, '
-        '<span style="color:#FFFF00; font-weight:bold;">Yellow</span> indicates moderate load, and '
-        '<span style="color:#00FF00; font-weight:bold;">Green</span> represents low consumption sectors. '
-        'This visualization helps in identifying areas requiring immediate grid reinforcement or solar intervention.'
+        '<b>Geospatial Focus:</b> Use the controls to focus on specific regions. '
+        'In <b>Greater Noida</b>, areas around <i>Gamma 1</i> and <i>Knowledge Park</i> exhibit higher industrial and residential density. '
+        'The 3D columns allow for a quick visual audit of the load distribution, with 🔴 red pillars highlighting sectors that may need transformer capacity upgrades.'
         '</div>',
         unsafe_allow_html=True
     )
