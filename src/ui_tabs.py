@@ -967,18 +967,22 @@ def tab_3d_map(hh, comm):
 
     if show_labels:
         is_dark = st.get_option("theme.base") == "dark"
+        # Calculate label height (at the top of the column + offset)
+        df_map['label_elev'] = df_map['elevation_val'] * elevation_scale + 10
+        
         layers.append(
             pdk.Layer(
                 "TextLayer",
                 data=df_map,
-                get_position=["lon", "lat"],
+                get_position=["lon", "lat", "label_elev"],
                 get_text="Area",
-                get_size=16,
-                get_color=[255, 255, 255] if is_dark else [0, 0, 0],
-                get_alignment_baseline="'bottom'",
-                get_pixel_offset=[0, -15],
+                get_size=18,
+                get_color=[255, 255, 255] if is_dark else [20, 20, 20],
+                get_alignment_baseline="'center'",
+                get_text_anchor="'middle'",
                 background=True,
-                get_background_color=[0, 0, 0, 150] if not is_dark else [255, 255, 255, 150],
+                get_background_color=[0, 0, 0, 180] if is_dark else [255, 255, 255, 180],
+                billboard=True, # Keeps labels facing the camera
             )
         )
 
