@@ -1004,40 +1004,6 @@ def tab_3d_map(hh, comm, models):
         'Sector 150': [28.4450, 77.4450],
     }
 
-    # Major Roads in Greater Noida with estimated consumption (kWh/day)
-    # Based on GNIDA lighting estimates
-    roads_data = [
-        {
-            "name": "Noida-Greater Noida Expressway",
-            "path": [[77.350, 28.580], [77.400, 28.514], [77.513, 28.468]],
-            "units": 4520,
-            "color": [255, 165, 0] # Orange
-        },
-        {
-            "name": "Yamuna Expressway",
-            "path": [[77.513, 28.468], [77.530, 28.440], [77.550, 28.400]],
-            "units": 5180,
-            "color": [255, 165, 0]
-        },
-        {
-            "name": "Surajpur-Kasna Road",
-            "path": [[77.450, 28.520], [77.480, 28.490], [77.520, 28.450]],
-            "units": 3850,
-            "color": [55, 138, 221] # Blue
-        },
-        {
-            "name": "Greater Noida Link Road",
-            "path": [[77.420, 28.600], [77.450, 28.550], [77.480, 28.500]],
-            "units": 3240,
-            "color": [55, 138, 221]
-        },
-        {
-            "name": "Internal Sector Road (Alpha-Beta-Delta)",
-            "path": [[77.502, 28.468], [77.510, 28.475], [77.514, 28.483], [77.514, 28.500]],
-            "units": 1450,
-            "color": [29, 158, 117] # Teal
-        }
-    ]
 
     # Data aggregation
     hh_map = hh.groupby('Sector')['Units Consumed'].sum().reset_index()
@@ -1073,9 +1039,7 @@ def tab_3d_map(hh, comm, models):
         st.markdown("### Layers")
         show_buildings = st.checkbox("Show 3D Building Energy", value=True)
         show_heatmap = st.checkbox("Show Area Heatmap", value=False)
-        show_labels = st.checkbox("Show Sector Labels", value=True)
-        show_roads = st.checkbox("Show Street Lighting", value=True)
-        show_osm_roads = st.checkbox("Show Real Road Network", value=False)
+        show_osm_roads = st.checkbox("Show Real Road Network", value=True)
         
         if show_heatmap:
             intensity = st.slider("Heatmap Intensity", 1, 10, 5)
@@ -1159,39 +1123,7 @@ def tab_3d_map(hh, comm, models):
             )
         )
 
-    if show_roads:
-        layers.append(
-            pdk.Layer(
-                "PathLayer",
-                data=roads_data,
-                get_path="path",
-                get_color="color",
-                width_min_pixels=3,
-                pickable=True,
-                auto_highlight=True,
-            )
-        )
 
-    if show_labels and buildings_data:
-        # Show only top 20 high consumption zones to reduce clutter
-        label_df = pd.DataFrame(buildings_data).nlargest(20, "value")
-        
-        is_dark = st.get_option("theme.base") == "dark"
-        layers.append(
-            pdk.Layer(
-                "TextLayer",
-                data=label_df,
-                get_position=["lon", "lat"],
-                get_text="sector",
-                get_size=20,
-                get_color=[255, 255, 255] if is_dark else [20, 20, 20],
-                get_alignment_baseline="'center'",
-                get_text_anchor="'middle'",
-                background=True,
-                get_background_color=[0, 0, 0, 200] if is_dark else [255, 255, 255, 200],
-                billboard=True,
-            )
-        )
 
     tooltip = {
         "html": "<b>Sector:</b> {sector}<br/>"
