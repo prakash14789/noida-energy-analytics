@@ -890,6 +890,41 @@ def tab_3d_map(hh, comm):
         'Sector 150': [28.4450, 77.4450],
     }
 
+    # Major Roads in Greater Noida with estimated consumption (kWh/day)
+    # Based on GNIDA lighting estimates
+    roads_data = [
+        {
+            "name": "Noida-Greater Noida Expressway",
+            "path": [[77.350, 28.580], [77.400, 28.514], [77.513, 28.468]],
+            "units": 4520,
+            "color": [255, 165, 0] # Orange
+        },
+        {
+            "name": "Yamuna Expressway",
+            "path": [[77.513, 28.468], [77.530, 28.440], [77.550, 28.400]],
+            "units": 5180,
+            "color": [255, 165, 0]
+        },
+        {
+            "name": "Surajpur-Kasna Road",
+            "path": [[77.450, 28.520], [77.480, 28.490], [77.520, 28.450]],
+            "units": 3850,
+            "color": [55, 138, 221] # Blue
+        },
+        {
+            "name": "Greater Noida Link Road",
+            "path": [[77.420, 28.600], [77.450, 28.550], [77.480, 28.500]],
+            "units": 3240,
+            "color": [55, 138, 221]
+        },
+        {
+            "name": "Internal Sector Road (Alpha-Beta-Delta)",
+            "path": [[77.502, 28.468], [77.510, 28.475], [77.514, 28.483], [77.514, 28.500]],
+            "units": 1450,
+            "color": [29, 158, 117] # Teal
+        }
+    ]
+
     # Data aggregation
     hh_map = hh.groupby('Sector')['Units Consumed'].sum().reset_index()
     hh_map.rename(columns={'Sector': 'Area', 'Units Consumed': 'units'}, inplace=True)
@@ -910,21 +945,24 @@ def tab_3d_map(hh, comm):
     
     with col_info:
         st.markdown("### Map Controls")
-        
+        map_type = st.radio("Map Type", ["3D Columns", "Heatmap"], index=0)
+        view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
+        show_labels = st.checkbox("Show Labels", value=True)
+        show_roads = st.checkbox("Show Roads (Street Lights)", value=True)
+
         # Total Units Metric
         total_kwh = df_map['units'].sum()
+        if show_roads:
+            total_kwh += sum(r['units'] for r in roads_data)
+            
         st.markdown(
             f'<div class="metric-card" style="margin-bottom: 20px; border: 1px solid rgba(29,158,117,0.3);">'
             f'<div class="lbl">Total Units Consumed</div>'
             f'<div class="val" style="font-size: 1.8rem; color: #1D9E75;">{total_kwh:,.0f}</div>'
-            f'<div class="sub">kWh (All mapped areas)</div>'
+            f'<div class="sub">kWh (Mapped Areas + Roads)</div>'
             f'</div>',
             unsafe_allow_html=True
         )
-
-        map_type = st.radio("Map Type", ["3D Columns", "Heatmap"], index=0)
-        view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
-        show_labels = st.checkbox("Show Labels", value=True)
         
         if map_type == "3D Columns":
             elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
@@ -999,6 +1037,19 @@ def tab_3d_map(hh, comm):
             )
         )
 
+    if show_roads:
+        layers.append(
+            pdk.Layer(
+                "PathLayer",
+                data=roads_data,
+                get_path="path",
+                get_color="color",
+                width_min_pixels=3,
+                pickable=True,
+                auto_highlight=True,
+            )
+        )
+
     if show_labels:
         is_dark = st.get_option("theme.base") == "dark"
         # Calculate label height
@@ -1024,7 +1075,8 @@ def tab_3d_map(hh, comm):
         )
 
     tooltip = {
-        "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {units} kWh",
+        "html": "<b>Area/Road:</b> {Area}{name}<br/>"
+                "<b>Total Consumption:</b> {units} kWh",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
