@@ -874,8 +874,8 @@ def tab_3d_map(hh, comm, models):
         return None
 
     @st.cache_data
-    def get_building_predictions(_buildings_data, _models, _loc_map, month_num):
-        if not _buildings_data: return None
+    def get_building_data_linked(_buildings_raw, _hh, _comm, _models, _loc_map, mode, month_num=5):
+        if not _buildings_raw: return None
         from shapely.geometry import shape, Point
         import numpy as np
         
@@ -884,9 +884,12 @@ def tab_3d_map(hh, comm, models):
             sectors.append({'name': name, 'lat': coords[0], 'lon': coords[1]})
         sector_points = [Point(s['lon'], s['lat']) for s in sectors]
         
-        model = _models['hh']['gb']
+        # Historical mapping
+        hh_hist = _hh.groupby('Sector')['Units Consumed'].mean().to_dict()
+        comm_hist = _comm.groupby('Area')['Units Consumed (After Solar)'].mean().to_dict()
         
-        # Predict for each sector
+        # Prediction mapping
+        model = _models['hh']['gb']
         sector_preds = {}
         for s in sectors:
             inp = [[month_num, 0.2, 0, 3, 0]]
@@ -894,7 +897,7 @@ def tab_3d_map(hh, comm, models):
             sector_preds[s['name']] = float(pred)
             
         features = []
-        for feature in _buildings_data['features']:
+        for feature in _buildings_raw['features']:
             try:
                 geom = shape(feature['geometry'])
                 centroid = geom.centroid
@@ -902,15 +905,21 @@ def tab_3d_map(hh, comm, models):
                 nearest_idx = np.argmin(distances)
                 sector_name = sectors[nearest_idx]['name']
                 
-                pred_val = sector_preds.get(sector_name, 100)
-                feature['properties']['prediction'] = round(pred_val, 1)
-                feature['properties']['sector'] = sector_name
-                feature['properties']['elev'] = pred_val / 4
+                if mode == "ML Predictions":
+                    val = sector_preds.get(sector_name, 100)
+                    feature['properties']['value_type'] = "Prediction"
+                else:
+                    val = hh_hist.get(sector_name, comm_hist.get(sector_name, 100))
+                    feature['properties']['value_type'] = "Historical"
                 
-                if pred_val > 480: color = [220, 20, 60, 200]     # Critical
-                elif pred_val > 420: color = [255, 140, 0, 200]   # High
-                elif pred_val > 350: color = [255, 215, 0, 200]   # Moderate
-                else: color = [34, 139, 34, 200]                # Low
+                feature['properties']['value'] = round(val, 1)
+                feature['properties']['sector'] = sector_name
+                feature['properties']['elev'] = val / 4
+                
+                if val > 480: color = [220, 20, 60, 200]
+                elif val > 420: color = [255, 140, 0, 200]
+                elif val > 350: color = [255, 215, 0, 200]
+                else: color = [34, 139, 34, 200]
                 
                 feature['properties']['color'] = color
                 features.append(feature)
@@ -1005,50 +1014,24 @@ def tab_3d_map(hh, comm, models):
     
     with col_info:
         st.markdown("### Map Controls")
-        map_mode = st.radio("Visualization Mode", ["Historical Consumption", "ML Predictions"], index=0)
-        map_type = st.radio("Plot Type", ["3D Columns", "Heatmap"], index=0)
+        map_mode = st.radio("Analysis Mode", ["Historical Consumption", "ML Predictions"], index=1)
         view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
         
+        m_num = 5 # Default May
         if map_mode == "ML Predictions":
-            sel_month = st.select_slider("Predict for Month", options=MONTH_ORDER, value="May")
+            sel_month = st.select_slider("Forecast for Month", options=MONTH_ORDER, value="May")
             m_num = MONTH_MAP[sel_month]
-            buildings_data = get_building_predictions(buildings_raw, models, loc_map, m_num)
-        else:
-            buildings_data = buildings_raw
+        
+        buildings_data = get_building_data_linked(buildings_raw, hh, comm, models, loc_map, map_mode, m_num)
         
         st.markdown("### Layers")
-        show_labels = st.checkbox("Show Labels", value=True)
-        show_roads = st.checkbox("Show Roads (Street Lights)", value=True)
-        show_buildings = st.checkbox("Show Real 3D Buildings (OSM)", value=True)
-        show_osm_roads = st.checkbox("Show Real Road Network (OSM)", value=False)
+        show_buildings = st.checkbox("Show 3D Building Energy", value=True)
+        show_heatmap = st.checkbox("Show Area Heatmap", value=False)
+        show_labels = st.checkbox("Show Sector Labels", value=True)
+        show_roads = st.checkbox("Show Street Lighting", value=True)
+        show_osm_roads = st.checkbox("Show Real Road Network", value=False)
         
-        # Highlight hotspots checkbox
-        only_hotspots = st.checkbox("Highlight Only Hotspots", value=False)
-
-        # Total Units Metric
-        # Filter for hotspots if selected
-        map_df_final = df_map.copy()
-        if only_hotspots:
-            threshold = df_map['units'].quantile(0.7)
-            map_df_final = map_df_final[map_df_final['units'] >= threshold]
-
-        total_kwh = map_df_final['units'].sum()
-        if show_roads:
-            total_kwh += sum(r['units'] for r in roads_data)
-            
-        st.markdown(
-            f'<div class="metric-card" style="margin-bottom: 20px; border: 1px solid rgba(29,158,117,0.3);">'
-            f'<div class="lbl">Total Units Consumed</div>'
-            f'<div class="val" style="font-size: 1.8rem; color: #1D9E75;">{total_kwh:,.0f}</div>'
-            f'<div class="sub">kWh (Mapped Areas + Roads)</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-        
-        if map_type == "3D Columns":
-            elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
-            radius = st.slider("Column Radius", 100, 1000, 500)
-        else:
+        if show_heatmap:
             intensity = st.slider("Heatmap Intensity", 1, 10, 5)
             radius_pixels = st.slider("Heatmap Radius (px)", 10, 100, 40)
 
@@ -1092,68 +1075,63 @@ def tab_3d_map(hh, comm, models):
 
     layers = []
     
-    # 1. Real 3D Buildings from OSM
+    # 1. 3D Building Energy Layer (Primary)
     if show_buildings and buildings_data:
-        # If in ML mode, use prediction-based coloring/height
-        elev_attr = "properties.elev" if map_mode == "ML Predictions" else "properties.height"
-        color_attr = "properties.color" if map_mode == "ML Predictions" else "[180, 180, 180, 120]"
-        
         layers.append(
             pdk.Layer(
                 "GeoJsonLayer",
                 data=buildings_data,
-                opacity=0.6 if map_mode == "ML Predictions" else 0.4,
+                opacity=0.8,
                 stroked=False,
                 filled=True,
                 extruded=True,
                 wireframe=True,
-                get_elevation=elev_attr,
-                get_fill_color=color_attr,
+                get_elevation="properties.elev",
+                get_fill_color="properties.color",
                 get_line_color="[255, 255, 255]",
+                pickable=True,
+                auto_highlight=True,
+            )
+        )
+
+    # 2. Road Network Layers
+    if show_roads:
+        layers.append(
+            pdk.Layer(
+                "PathLayer",
+                data=roads_data,
+                get_path="path",
+                get_color="color",
+                width_min_pixels=3,
                 pickable=True,
             )
         )
 
-    # 2. Real Road Network from OSM
     if show_osm_roads and osm_roads_data:
         layers.append(
             pdk.Layer(
                 "GeoJsonLayer",
                 data=osm_roads_data,
-                opacity=0.6,
+                opacity=0.4,
                 stroked=True,
                 filled=False,
                 line_width_min_pixels=1,
-                get_line_color="[100, 150, 255, 150]",
+                get_line_color="[100, 150, 255, 100]",
             )
         )
 
-    # 3. Energy Consumption Layer (The USP)
-    if map_type == "3D Columns":
-        layers.append(
-            pdk.Layer(
-                "ColumnLayer",
-                data=map_df_final,
-                get_position=["lon", "lat"],
-                get_elevation="elevation_val",
-                elevation_scale=elevation_scale,
-                radius=radius,
-                get_fill_color="color",
-                pickable=True,
-                auto_highlight=True,
-            )
-        )
-    else:
+    # 3. Area Heatmap
+    if show_heatmap:
         layers.append(
             pdk.Layer(
                 "HeatmapLayer",
-                data=map_df_final,
+                data=df_map,
                 get_position=["lon", "lat"],
                 get_weight="units",
                 radiusPixels=radius_pixels,
                 intensity=intensity,
                 threshold=0.05,
-                opacity=0.8,
+                opacity=0.7,
             )
         )
 
@@ -1172,17 +1150,11 @@ def tab_3d_map(hh, comm, models):
 
     if show_labels:
         is_dark = st.get_option("theme.base") == "dark"
-        # Calculate label height
-        if map_type == "3D Columns":
-            map_df_final['label_elev'] = map_df_final['elevation_val'] * elevation_scale + 10
-        else:
-            map_df_final['label_elev'] = 5
-        
         layers.append(
             pdk.Layer(
                 "TextLayer",
-                data=map_df_final,
-                get_position=["lon", "lat", "label_elev"],
+                data=df_map,
+                get_position=["lon", "lat"],
                 get_text="Area",
                 get_size=18,
                 get_color=[255, 255, 255] if is_dark else [20, 20, 20],
@@ -1195,9 +1167,8 @@ def tab_3d_map(hh, comm, models):
         )
 
     tooltip = {
-        "html": "<b>Area/Road:</b> {Area}{name}{properties.name}<br/>"
-                "<b>Sector:</b> {properties.sector}<br/>"
-                "<b>Consumption:</b> {units}{properties.prediction} kWh",
+        "html": "<b>Area/Sector:</b> {properties.sector}<br/>"
+                "<b>{properties.value_type} Consumption:</b> {properties.value} kWh",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
@@ -1226,9 +1197,10 @@ def tab_3d_map(hh, comm, models):
 
     st.markdown(
         '<div class="insight-box">'
-        '<b>Geospatial Focus:</b> Use the controls to focus on specific regions. '
-        'In <b>Greater Noida</b>, areas around <i>Gamma 1</i> and <i>Knowledge Park</i> exhibit higher industrial and residential density. '
-        'The 3D columns allow for a quick visual audit of the load distribution, with 🔴 red pillars highlighting sectors that may need transformer capacity upgrades.'
+        '<b>Digital Twin:</b> This 3D model represents real buildings in Greater Noida. '
+        'Color intensity and building height now directly represent energy consumption—either '
+        '<b>Historical</b> (actual dataset averages) or <b>ML Predictions</b> (forecasted based on model parameters). '
+        '🔴 Red buildings indicate high-load hotspots that require infrastructure attention.'
         '</div>',
         unsafe_allow_html=True
     )
