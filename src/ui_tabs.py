@@ -1036,6 +1036,25 @@ def tab_3d_map(hh, comm, models):
         buildings_data = get_building_data_linked(buildings_raw, hh, comm, models, loc_map, map_mode, m_num)
         osm_roads_data = get_road_coordinates(roads_raw)
         
+        # Total Consumption Metric for visible buildings
+        if buildings_data:
+            total_visible_kwh = sum(b['value'] for b in buildings_data)
+            st.markdown(
+                f'<div class="metric-card" style="margin-bottom: 20px; border: 1px solid rgba(29,158,117,0.3);">'
+                f'<div class="lbl">Total Power Consumption</div>'
+                f'<div class="val" style="font-size: 1.8rem; color: #1D9E75;">{total_visible_kwh:,.0f}</div>'
+                f'<div class="sub">kWh (Current Mode: {map_mode})</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            
+            # Top 5 Places list
+            import pandas as pd
+            top_places = pd.DataFrame(buildings_data).groupby('sector')['value'].mean().nlargest(5).reset_index()
+            st.markdown("#### 🚩 High Load Sectors")
+            for _, row in top_places.iterrows():
+                st.markdown(f"**{row['sector']}**: {row['value']:,.1f} kWh")
+        
         st.markdown("### Layers")
         show_buildings = st.checkbox("Show 3D Building Energy", value=True)
         show_heatmap = st.checkbox("Show Area Heatmap", value=False)
