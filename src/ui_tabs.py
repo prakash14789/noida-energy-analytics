@@ -859,7 +859,7 @@ def tab_simulator(hh):
         unsafe_allow_html=True
     )
 
-def tab_3d_map(hh, comm):
+def tab_3d_map(hh, comm, models):
     import pydeck as pdk
     import os
     import json
@@ -873,7 +873,52 @@ def tab_3d_map(hh, comm):
             except: return None
         return None
 
-    buildings_data = load_osm_data("buildings_gn.geojson")
+    @st.cache_data
+    def get_building_predictions(_buildings_data, _models, _loc_map, month_num):
+        if not _buildings_data: return None
+        from shapely.geometry import shape, Point
+        import numpy as np
+        
+        sectors = []
+        for name, coords in _loc_map.items():
+            sectors.append({'name': name, 'lat': coords[0], 'lon': coords[1]})
+        sector_points = [Point(s['lon'], s['lat']) for s in sectors]
+        
+        model = _models['hh']['gb']
+        
+        # Predict for each sector
+        sector_preds = {}
+        for s in sectors:
+            inp = [[month_num, 0.2, 0, 3, 0]]
+            pred = model.predict(inp)[0]
+            sector_preds[s['name']] = float(pred)
+            
+        features = []
+        for feature in _buildings_data['features']:
+            try:
+                geom = shape(feature['geometry'])
+                centroid = geom.centroid
+                distances = [centroid.distance(p) for p in sector_points]
+                nearest_idx = np.argmin(distances)
+                sector_name = sectors[nearest_idx]['name']
+                
+                pred_val = sector_preds.get(sector_name, 100)
+                feature['properties']['prediction'] = round(pred_val, 1)
+                feature['properties']['sector'] = sector_name
+                feature['properties']['elev'] = pred_val / 4
+                
+                if pred_val > 480: color = [220, 20, 60, 200]     # Critical
+                elif pred_val > 420: color = [255, 140, 0, 200]   # High
+                elif pred_val > 350: color = [255, 215, 0, 200]   # Moderate
+                else: color = [34, 139, 34, 200]                # Low
+                
+                feature['properties']['color'] = color
+                features.append(feature)
+            except: continue
+            
+        return {"type": "FeatureCollection", "features": features}
+
+    buildings_raw = load_osm_data("buildings_gn.geojson")
     osm_roads_data = load_osm_data("roads_gn.geojson")
 
     st.markdown('<div class="section-title">Geospatial Energy Heatmap (3D)</div>',
@@ -960,8 +1005,16 @@ def tab_3d_map(hh, comm):
     
     with col_info:
         st.markdown("### Map Controls")
-        map_type = st.radio("Map Type", ["3D Columns", "Heatmap"], index=0)
+        map_mode = st.radio("Visualization Mode", ["Historical Consumption", "ML Predictions"], index=0)
+        map_type = st.radio("Plot Type", ["3D Columns", "Heatmap"], index=0)
         view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
+        
+        if map_mode == "ML Predictions":
+            sel_month = st.select_slider("Predict for Month", options=MONTH_ORDER, value="May")
+            m_num = MONTH_MAP[sel_month]
+            buildings_data = get_building_predictions(buildings_raw, models, loc_map, m_num)
+        else:
+            buildings_data = buildings_raw
         
         st.markdown("### Layers")
         show_labels = st.checkbox("Show Labels", value=True)
@@ -1041,17 +1094,21 @@ def tab_3d_map(hh, comm):
     
     # 1. Real 3D Buildings from OSM
     if show_buildings and buildings_data:
+        # If in ML mode, use prediction-based coloring/height
+        elev_attr = "properties.elev" if map_mode == "ML Predictions" else "properties.height"
+        color_attr = "properties.color" if map_mode == "ML Predictions" else "[180, 180, 180, 120]"
+        
         layers.append(
             pdk.Layer(
                 "GeoJsonLayer",
                 data=buildings_data,
-                opacity=0.4,
+                opacity=0.6 if map_mode == "ML Predictions" else 0.4,
                 stroked=False,
                 filled=True,
                 extruded=True,
                 wireframe=True,
-                get_elevation="properties.height",
-                get_fill_color="[180, 180, 180, 120]",
+                get_elevation=elev_attr,
+                get_fill_color=color_attr,
                 get_line_color="[255, 255, 255]",
                 pickable=True,
             )
@@ -1138,8 +1195,9 @@ def tab_3d_map(hh, comm):
         )
 
     tooltip = {
-        "html": "<b>Area/Road/Building:</b> {Area}{name}{properties.name}<br/>"
-                "<b>Consumption:</b> {units}{properties.height} kWh/m",
+        "html": "<b>Area/Road:</b> {Area}{name}{properties.name}<br/>"
+                "<b>Sector:</b> {properties.sector}<br/>"
+                "<b>Consumption:</b> {units}{properties.prediction} kWh",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 

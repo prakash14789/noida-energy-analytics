@@ -52,7 +52,7 @@ def main():
     ])
 
     with tabs[0]: tab_overview(hh, comm)
-    with tabs[1]: tab_3d_map(hh, comm)
+    with tabs[1]: tab_3d_map(hh, comm, models)
     with tabs[2]: tab_regional(hh, comm)
     with tabs[3]: tab_roi(hh)
     with tabs[4]: tab_simulator(hh)
