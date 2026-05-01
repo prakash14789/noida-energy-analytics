@@ -1083,18 +1083,6 @@ def tab_3d_map(hh, comm, models):
             )
         )
 
-    # 2. Road Network Layers
-    if show_roads:
-        layers.append(
-            pdk.Layer(
-                "PathLayer",
-                data=roads_data,
-                get_path="path",
-                get_color="color",
-                width_min_pixels=3,
-                pickable=True,
-            )
-        )
 
     if show_osm_roads and osm_roads_data:
         layers.append(
