@@ -1049,7 +1049,6 @@ def tab_3d_map(hh, comm, models):
             )
             
             # Top 5 Places list
-            import pandas as pd
             top_places = pd.DataFrame(buildings_data).groupby('sector')['value'].mean().nlargest(5).reset_index()
             st.markdown("#### 🚩 High Load Sectors")
             for _, row in top_places.iterrows():
