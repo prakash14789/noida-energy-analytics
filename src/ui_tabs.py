@@ -916,25 +916,68 @@ def tab_3d_map(hh, comm, models):
                         min_dist = d
                         sector_name = s['name']
                 
+        # Prepare for normalization
+        all_vals = list(sector_preds.values()) + list(hh_hist.values()) + list(comm_hist.values())
+        min_v = min(all_vals) if all_vals else 0
+        max_v = max(all_vals) if all_vals else 1000
+        
+        def get_gradient_color(v):
+            # Normalize v between min_v and max_v
+            norm = (v - min_v) / (max_v - min_v + 1e-6)
+            norm = max(0, min(1, norm))
+            if norm < 0.5:
+                # Green to Yellow
+                r = int(255 * (norm * 2))
+                g = 255
+                b = 0
+            else:
+                # Yellow to Red
+                r = 255
+                g = int(255 * (1 - (norm - 0.5) * 2))
+                b = 0
+            return [r, g, b, 200]
+
+        building_list = []
+        for feature in _buildings_raw['features']:
+            try:
+                geom_type = feature['geometry']['type']
+                coords = feature['geometry']['coordinates']
+                
+                if geom_type == 'Polygon':
+                    poly_coords = coords[0]
+                    pts = np.array(poly_coords)
+                    b_lon, b_lat = np.mean(pts, axis=0)
+                elif geom_type == 'MultiPolygon':
+                    poly_coords = coords[0][0]
+                    pts = np.array(poly_coords)
+                    b_lon, b_lat = np.mean(pts, axis=0)
+                else: continue
+                
+                min_dist = float('inf')
+                sector_name = None
+                for s in sectors:
+                    d = (b_lat - s['lat'])**2 + (b_lon - s['lon'])**2
+                    if d < min_dist:
+                        min_dist = d
+                        sector_name = s['name']
+                
                 if mode == "ML Predictions":
-                    val = sector_preds.get(sector_name, 100)
+                    val = sector_preds.get(sector_name, min_v)
                     v_type = "Prediction"
                 else:
-                    val = hh_hist.get(sector_name, comm_hist.get(sector_name, 100))
+                    val = hh_hist.get(sector_name, comm_hist.get(sector_name, min_v))
                     v_type = "Historical"
                 
-                if val > 480: color = [220, 20, 60, 200]
-                elif val > 420: color = [255, 140, 0, 200]
-                elif val > 350: color = [255, 215, 0, 200]
-                else: color = [34, 139, 34, 200]
+                # Use normalization for elevation too
+                norm_val = (val - min_v) / (max_v - min_v + 1e-6)
                 
                 building_list.append({
                     'polygon': poly_coords,
                     'sector': sector_name,
                     'value': round(val, 1),
                     'value_type': v_type,
-                    'elev': val * 2, # Increased scaling for better 3D effect
-                    'color': color,
+                    'elev': norm_val * 400 + 10, # Adaptive height from 10m to 410m
+                    'color': get_gradient_color(val),
                     'lon': b_lon,
                     'lat': b_lat
                 })
