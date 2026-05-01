@@ -1173,7 +1173,6 @@ def tab_3d_map(hh, comm, models):
         )
 
     if show_labels and buildings_data:
-        import pandas as pd
         # Show only top 20 high consumption zones to reduce clutter
         label_df = pd.DataFrame(buildings_data).nlargest(20, "value")
         
