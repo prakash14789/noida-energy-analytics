@@ -892,46 +892,19 @@ def tab_3d_map(hh, comm, models):
             pred = model.predict(inp)[0]
             sector_preds[s['name']] = float(pred)
             
-        building_list = []
-        for feature in _buildings_raw['features']:
-            try:
-                geom_type = feature['geometry']['type']
-                coords = feature['geometry']['coordinates']
-                
-                if geom_type == 'Polygon':
-                    poly_coords = coords[0]
-                    pts = np.array(poly_coords)
-                    b_lon, b_lat = np.mean(pts, axis=0)
-                elif geom_type == 'MultiPolygon':
-                    poly_coords = coords[0][0]
-                    pts = np.array(poly_coords)
-                    b_lon, b_lat = np.mean(pts, axis=0)
-                else: continue
-                
-                min_dist = float('inf')
-                sector_name = None
-                for s in sectors:
-                    d = (b_lat - s['lat'])**2 + (b_lon - s['lon'])**2
-                    if d < min_dist:
-                        min_dist = d
-                        sector_name = s['name']
-                
         # Prepare for normalization
         all_vals = list(sector_preds.values()) + list(hh_hist.values()) + list(comm_hist.values())
         min_v = min(all_vals) if all_vals else 0
         max_v = max(all_vals) if all_vals else 1000
         
         def get_gradient_color(v):
-            # Normalize v between min_v and max_v
             norm = (v - min_v) / (max_v - min_v + 1e-6)
             norm = max(0, min(1, norm))
             if norm < 0.5:
-                # Green to Yellow
                 r = int(255 * (norm * 2))
                 g = 255
                 b = 0
             else:
-                # Yellow to Red
                 r = 255
                 g = int(255 * (1 - (norm - 0.5) * 2))
                 b = 0
@@ -968,7 +941,6 @@ def tab_3d_map(hh, comm, models):
                     val = hh_hist.get(sector_name, comm_hist.get(sector_name, min_v))
                     v_type = "Historical"
                 
-                # Use normalization for elevation too
                 norm_val = (val - min_v) / (max_v - min_v + 1e-6)
                 
                 building_list.append({
@@ -976,12 +948,13 @@ def tab_3d_map(hh, comm, models):
                     'sector': sector_name,
                     'value': round(val, 1),
                     'value_type': v_type,
-                    'elev': norm_val * 400 + 10, # Adaptive height from 10m to 410m
+                    'elev': norm_val * 400 + 10,
                     'color': get_gradient_color(val),
                     'lon': b_lon,
                     'lat': b_lat
                 })
-            except: continue
+            except:
+                continue
             
         return building_list
 
