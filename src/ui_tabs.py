@@ -892,11 +892,11 @@ def tab_3d_map(hh, comm):
 
     # Data aggregation
     hh_map = hh.groupby('Sector')['Units Consumed'].sum().reset_index()
-    hh_map.rename(columns={'Sector': 'Area'}, inplace=True)
+    hh_map.rename(columns={'Sector': 'Area', 'Units Consumed': 'units'}, inplace=True)
     hh_map['type'] = 'Household'
 
     comm_map = comm.groupby('Area')['Units Consumed (After Solar)'].sum().reset_index()
-    comm_map.rename(columns={'Units Consumed (After Solar)': 'Units Consumed'}, inplace=True)
+    comm_map.rename(columns={'Units Consumed (After Solar)': 'units'}, inplace=True)
     comm_map['type'] = 'Commercial'
 
     df_map = pd.concat([hh_map, comm_map])
@@ -912,7 +912,7 @@ def tab_3d_map(hh, comm):
         st.markdown("### Map Controls")
         
         # Total Units Metric
-        total_kwh = df_map['Units Consumed'].sum()
+        total_kwh = df_map['units'].sum()
         st.markdown(
             f'<div class="metric-card" style="margin-bottom: 20px; border: 1px solid rgba(29,158,117,0.3);">'
             f'<div class="lbl">Total Units Consumed</div>'
@@ -942,8 +942,8 @@ def tab_3d_map(hh, comm):
         initial_lat, initial_lon, initial_zoom = 28.52, 77.42, 11
 
     # Calculate colors
-    max_c = df_map['Units Consumed'].max()
-    min_c = df_map['Units Consumed'].min()
+    max_c = df_map['units'].max()
+    min_c = df_map['units'].min()
     
     def get_color(val):
         norm = (val - min_c) / (max_c - min_c) if max_c > min_c else 0.5
@@ -957,9 +957,9 @@ def tab_3d_map(hh, comm):
             b = 0
         return [r, g, b, 220]
 
-    df_map['color'] = df_map['Units Consumed'].apply(get_color)
+    df_map['color'] = df_map['units'].apply(get_color)
     # Relative elevation
-    df_map['elevation_val'] = (df_map['Units Consumed'] / max_c) * 100
+    df_map['elevation_val'] = (df_map['units'] / max_c) * 100
 
     view_state = pdk.ViewState(
         latitude=initial_lat,
@@ -991,7 +991,7 @@ def tab_3d_map(hh, comm):
                 "HeatmapLayer",
                 data=df_map,
                 get_position=["lon", "lat"],
-                get_weight="Units Consumed",
+                get_weight="units",
                 radiusPixels=radius_pixels,
                 intensity=intensity,
                 threshold=0.05,
@@ -1024,7 +1024,7 @@ def tab_3d_map(hh, comm):
         )
 
     tooltip = {
-        "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {Units Consumed:,.0f} kWh",
+        "html": "<b>Area:</b> {Area}<br/><b>Type:</b> {type}<br/><b>Total Consumption:</b> {units} kWh",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
