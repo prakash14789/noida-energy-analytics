@@ -861,6 +861,21 @@ def tab_simulator(hh):
 
 def tab_3d_map(hh, comm):
     import pydeck as pdk
+    import os
+    import json
+    
+    @st.cache_data
+    def load_osm_data(filename):
+        if os.path.exists(filename):
+            try:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except: return None
+        return None
+
+    buildings_data = load_osm_data("buildings_gn.geojson")
+    osm_roads_data = load_osm_data("roads_gn.geojson")
+
     st.markdown('<div class="section-title">Geospatial Energy Heatmap (3D)</div>',
                 unsafe_allow_html=True)
     
@@ -947,11 +962,24 @@ def tab_3d_map(hh, comm):
         st.markdown("### Map Controls")
         map_type = st.radio("Map Type", ["3D Columns", "Heatmap"], index=0)
         view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
+        
+        st.markdown("### Layers")
         show_labels = st.checkbox("Show Labels", value=True)
         show_roads = st.checkbox("Show Roads (Street Lights)", value=True)
+        show_buildings = st.checkbox("Show Real 3D Buildings (OSM)", value=True)
+        show_osm_roads = st.checkbox("Show Real Road Network (OSM)", value=False)
+        
+        # Highlight hotspots checkbox
+        only_hotspots = st.checkbox("Highlight Only Hotspots", value=False)
 
         # Total Units Metric
-        total_kwh = df_map['units'].sum()
+        # Filter for hotspots if selected
+        map_df_final = df_map.copy()
+        if only_hotspots:
+            threshold = df_map['units'].quantile(0.7)
+            map_df_final = map_df_final[map_df_final['units'] >= threshold]
+
+        total_kwh = map_df_final['units'].sum()
         if show_roads:
             total_kwh += sum(r['units'] for r in roads_data)
             
@@ -971,19 +999,14 @@ def tab_3d_map(hh, comm):
             intensity = st.slider("Heatmap Intensity", 1, 10, 5)
             radius_pixels = st.slider("Heatmap Radius (px)", 10, 100, 40)
 
-    # Set initial view state based on selection
-    if view_focus == "Greater Noida":
-        initial_lat, initial_lon, initial_zoom = 28.47, 77.50, 12
-    elif view_focus == "Noida":
-        initial_lat, initial_lon, initial_zoom = 28.57, 77.35, 12
-    else:
-        initial_lat, initial_lon, initial_zoom = 28.52, 77.42, 11
-
-    # Calculate colors
-    max_c = df_map['units'].max()
-    min_c = df_map['units'].min()
+    # Calculate colors and elevation for columns
+    max_c = map_df_final['units'].max() if not map_df_final.empty else 1
+    min_c = map_df_final['units'].min() if not map_df_final.empty else 0
     
     def get_color(val):
+        if only_hotspots:
+            # More dramatic red for hotspots
+            return [255, 50, 50, 230]
         norm = (val - min_c) / (max_c - min_c) if max_c > min_c else 0.5
         if norm < 0.5:
             r = int(255 * (norm * 2))
@@ -995,25 +1018,65 @@ def tab_3d_map(hh, comm):
             b = 0
         return [r, g, b, 220]
 
-    df_map['color'] = df_map['units'].apply(get_color)
-    # Relative elevation
-    df_map['elevation_val'] = (df_map['units'] / max_c) * 100
+    # Set initial view state based on selection
+    if view_focus == "Greater Noida":
+        initial_lat, initial_lon, initial_zoom = 28.474, 77.507, 13
+    elif view_focus == "Noida":
+        initial_lat, initial_lon, initial_zoom = 28.57, 77.35, 12
+    else:
+        initial_lat, initial_lon, initial_zoom = 28.52, 77.42, 11
+
+    map_df_final['color'] = map_df_final['units'].apply(get_color)
+    map_df_final['elevation_val'] = (map_df_final['units'] / max_c) * 100 if max_c > 0 else 0
 
     view_state = pdk.ViewState(
         latitude=initial_lat,
         longitude=initial_lon,
         zoom=initial_zoom,
-        pitch=45 if map_type == "Heatmap" else 55,
-        bearing=-15
+        pitch=60,
+        bearing=-30
     )
 
     layers = []
     
+    # 1. Real 3D Buildings from OSM
+    if show_buildings and buildings_data:
+        layers.append(
+            pdk.Layer(
+                "GeoJsonLayer",
+                data=buildings_data,
+                opacity=0.4,
+                stroked=False,
+                filled=True,
+                extruded=True,
+                wireframe=True,
+                get_elevation="properties.height",
+                get_fill_color="[180, 180, 180, 120]",
+                get_line_color="[255, 255, 255]",
+                pickable=True,
+            )
+        )
+
+    # 2. Real Road Network from OSM
+    if show_osm_roads and osm_roads_data:
+        layers.append(
+            pdk.Layer(
+                "GeoJsonLayer",
+                data=osm_roads_data,
+                opacity=0.6,
+                stroked=True,
+                filled=False,
+                line_width_min_pixels=1,
+                get_line_color="[100, 150, 255, 150]",
+            )
+        )
+
+    # 3. Energy Consumption Layer (The USP)
     if map_type == "3D Columns":
         layers.append(
             pdk.Layer(
                 "ColumnLayer",
-                data=df_map,
+                data=map_df_final,
                 get_position=["lon", "lat"],
                 get_elevation="elevation_val",
                 elevation_scale=elevation_scale,
@@ -1027,7 +1090,7 @@ def tab_3d_map(hh, comm):
         layers.append(
             pdk.Layer(
                 "HeatmapLayer",
-                data=df_map,
+                data=map_df_final,
                 get_position=["lon", "lat"],
                 get_weight="units",
                 radiusPixels=radius_pixels,
@@ -1054,14 +1117,14 @@ def tab_3d_map(hh, comm):
         is_dark = st.get_option("theme.base") == "dark"
         # Calculate label height
         if map_type == "3D Columns":
-            df_map['label_elev'] = df_map['elevation_val'] * elevation_scale + 10
+            map_df_final['label_elev'] = map_df_final['elevation_val'] * elevation_scale + 10
         else:
-            df_map['label_elev'] = 5
+            map_df_final['label_elev'] = 5
         
         layers.append(
             pdk.Layer(
                 "TextLayer",
-                data=df_map,
+                data=map_df_final,
                 get_position=["lon", "lat", "label_elev"],
                 get_text="Area",
                 get_size=18,
@@ -1075,8 +1138,8 @@ def tab_3d_map(hh, comm):
         )
 
     tooltip = {
-        "html": "<b>Area/Road:</b> {Area}{name}<br/>"
-                "<b>Total Consumption:</b> {units} kWh",
+        "html": "<b>Area/Road/Building:</b> {Area}{name}{properties.name}<br/>"
+                "<b>Consumption:</b> {units}{properties.height} kWh/m",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
