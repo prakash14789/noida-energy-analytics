@@ -876,13 +876,11 @@ def tab_3d_map(hh, comm, models):
     @st.cache_data
     def get_building_data_linked(_buildings_raw, _hh, _comm, _models, _loc_map, mode, month_num=5):
         if not _buildings_raw: return None
-        from shapely.geometry import shape, Point
         import numpy as np
         
         sectors = []
         for name, coords in _loc_map.items():
             sectors.append({'name': name, 'lat': coords[0], 'lon': coords[1]})
-        sector_points = [Point(s['lon'], s['lat']) for s in sectors]
         
         # Historical mapping
         hh_hist = _hh.groupby('Sector')['Units Consumed'].mean().to_dict()
@@ -899,11 +897,26 @@ def tab_3d_map(hh, comm, models):
         features = []
         for feature in _buildings_raw['features']:
             try:
-                geom = shape(feature['geometry'])
-                centroid = geom.centroid
-                distances = [centroid.distance(p) for p in sector_points]
-                nearest_idx = np.argmin(distances)
-                sector_name = sectors[nearest_idx]['name']
+                # Simple Centroid calculation to avoid shapely dependency
+                geom_type = feature['geometry']['type']
+                coords = feature['geometry']['coordinates']
+                
+                if geom_type == 'Polygon':
+                    pts = np.array(coords[0])
+                    b_lon, b_lat = np.mean(pts, axis=0)
+                elif geom_type == 'MultiPolygon':
+                    pts = np.array(coords[0][0])
+                    b_lon, b_lat = np.mean(pts, axis=0)
+                else: continue
+                
+                # Nearest sector using squared Euclidean distance
+                min_dist = float('inf')
+                sector_name = None
+                for s in sectors:
+                    d = (b_lat - s['lat'])**2 + (b_lon - s['lon'])**2
+                    if d < min_dist:
+                        min_dist = d
+                        sector_name = s['name']
                 
                 if mode == "ML Predictions":
                     val = sector_preds.get(sector_name, 100)
