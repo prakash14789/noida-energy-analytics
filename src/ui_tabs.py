@@ -910,10 +910,28 @@ def tab_3d_map(hh, comm):
     
     with col_info:
         st.markdown("### Map Controls")
+        
+        # Total Units Metric
+        total_kwh = df_map['Units Consumed'].sum()
+        st.markdown(
+            f'<div class="metric-card" style="margin-bottom: 20px; border: 1px solid rgba(29,158,117,0.3);">'
+            f'<div class="lbl">Total Units Consumed</div>'
+            f'<div class="val" style="font-size: 1.8rem; color: #1D9E75;">{total_kwh:,.0f}</div>'
+            f'<div class="sub">kWh (All mapped areas)</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        map_type = st.radio("Map Type", ["3D Columns", "Heatmap"], index=0)
         view_focus = st.radio("Focus View", ["Greater Noida", "Noida", "All"], index=0)
         show_labels = st.checkbox("Show Labels", value=True)
-        elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
-        radius = st.slider("Column Radius", 100, 1000, 500)
+        
+        if map_type == "3D Columns":
+            elevation_scale = st.slider("Elevation Scale", 1, 100, 20)
+            radius = st.slider("Column Radius", 100, 1000, 500)
+        else:
+            intensity = st.slider("Heatmap Intensity", 1, 10, 5)
+            radius_pixels = st.slider("Heatmap Radius (px)", 10, 100, 40)
 
     # Set initial view state based on selection
     if view_focus == "Greater Noida":
@@ -947,28 +965,47 @@ def tab_3d_map(hh, comm):
         latitude=initial_lat,
         longitude=initial_lon,
         zoom=initial_zoom,
-        pitch=55,
+        pitch=45 if map_type == "Heatmap" else 55,
         bearing=-15
     )
 
-    layers = [
-        pdk.Layer(
-            "ColumnLayer",
-            data=df_map,
-            get_position=["lon", "lat"],
-            get_elevation="elevation_val",
-            elevation_scale=elevation_scale,
-            radius=radius,
-            get_fill_color="color",
-            pickable=True,
-            auto_highlight=True,
+    layers = []
+    
+    if map_type == "3D Columns":
+        layers.append(
+            pdk.Layer(
+                "ColumnLayer",
+                data=df_map,
+                get_position=["lon", "lat"],
+                get_elevation="elevation_val",
+                elevation_scale=elevation_scale,
+                radius=radius,
+                get_fill_color="color",
+                pickable=True,
+                auto_highlight=True,
+            )
         )
-    ]
+    else:
+        layers.append(
+            pdk.Layer(
+                "HeatmapLayer",
+                data=df_map,
+                get_position=["lon", "lat"],
+                get_weight="Units Consumed",
+                radiusPixels=radius_pixels,
+                intensity=intensity,
+                threshold=0.05,
+                opacity=0.8,
+            )
+        )
 
     if show_labels:
         is_dark = st.get_option("theme.base") == "dark"
-        # Calculate label height (at the top of the column + offset)
-        df_map['label_elev'] = df_map['elevation_val'] * elevation_scale + 10
+        # Calculate label height
+        if map_type == "3D Columns":
+            df_map['label_elev'] = df_map['elevation_val'] * elevation_scale + 10
+        else:
+            df_map['label_elev'] = 5
         
         layers.append(
             pdk.Layer(
@@ -982,7 +1019,7 @@ def tab_3d_map(hh, comm):
                 get_text_anchor="'middle'",
                 background=True,
                 get_background_color=[0, 0, 0, 180] if is_dark else [255, 255, 255, 180],
-                billboard=True, # Keeps labels facing the camera
+                billboard=True,
             )
         )
 
