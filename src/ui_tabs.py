@@ -884,13 +884,19 @@ def tab_3d_map(hh, comm, models):
         
         hh_hist = _hh.groupby('Sector')['Units Consumed'].mean().to_dict()
         comm_hist = _comm.groupby('Area')['Units Consumed (After Solar)'].mean().to_dict()
+        global_mean = _hh['Units Consumed'].mean()
         
         model = _models['hh']['gb']
         sector_preds = {}
         for s in sectors:
-            inp = [[month_num, 0.2, 0, 3, 0]]
-            pred = model.predict(inp)[0]
-            sector_preds[s['name']] = float(pred)
+            # Base prediction for standard parameters
+            base_pred = model.predict([[month_num, 0.2, 0, 3, 0]])[0]
+            
+            # Apply historical weight for this specific place
+            hist_val = hh_hist.get(s['name'], comm_hist.get(s['name'], global_mean))
+            weight = hist_val / global_mean if global_mean > 0 else 1.0
+            
+            sector_preds[s['name']] = float(base_pred * weight)
             
         # Prepare for normalization
         all_vals = list(sector_preds.values()) + list(hh_hist.values()) + list(comm_hist.values())
