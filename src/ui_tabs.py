@@ -1048,25 +1048,6 @@ def tab_3d_map(hh, comm, models):
             intensity = st.slider("Heatmap Intensity", 1, 10, 5)
             radius_pixels = st.slider("Heatmap Radius (px)", 10, 100, 40)
 
-    # Calculate colors and elevation for columns
-    max_c = map_df_final['units'].max() if not map_df_final.empty else 1
-    min_c = map_df_final['units'].min() if not map_df_final.empty else 0
-    
-    def get_color(val):
-        if only_hotspots:
-            # More dramatic red for hotspots
-            return [255, 50, 50, 230]
-        norm = (val - min_c) / (max_c - min_c) if max_c > min_c else 0.5
-        if norm < 0.5:
-            r = int(255 * (norm * 2))
-            g = 255
-            b = 0
-        else:
-            r = 255
-            g = int(255 * (1 - (norm - 0.5) * 2))
-            b = 0
-        return [r, g, b, 220]
-
     # Set initial view state based on selection
     if view_focus == "Greater Noida":
         initial_lat, initial_lon, initial_zoom = 28.474, 77.507, 13
@@ -1074,9 +1055,6 @@ def tab_3d_map(hh, comm, models):
         initial_lat, initial_lon, initial_zoom = 28.57, 77.35, 12
     else:
         initial_lat, initial_lon, initial_zoom = 28.52, 77.42, 11
-
-    map_df_final['color'] = map_df_final['units'].apply(get_color)
-    map_df_final['elevation_val'] = (map_df_final['units'] / max_c) * 100 if max_c > 0 else 0
 
     view_state = pdk.ViewState(
         latitude=initial_lat,
