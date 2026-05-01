@@ -875,18 +875,16 @@ def tab_3d_map(hh, comm, models):
 
     @st.cache_data
     def get_building_data_linked(_buildings_raw, _hh, _comm, _models, _loc_map, mode, month_num=5):
-        if not _buildings_raw: return None
+        if not _buildings_raw: return []
         import numpy as np
         
         sectors = []
         for name, coords in _loc_map.items():
             sectors.append({'name': name, 'lat': coords[0], 'lon': coords[1]})
         
-        # Historical mapping
         hh_hist = _hh.groupby('Sector')['Units Consumed'].mean().to_dict()
         comm_hist = _comm.groupby('Area')['Units Consumed (After Solar)'].mean().to_dict()
         
-        # Prediction mapping
         model = _models['hh']['gb']
         sector_preds = {}
         for s in sectors:
@@ -894,22 +892,22 @@ def tab_3d_map(hh, comm, models):
             pred = model.predict(inp)[0]
             sector_preds[s['name']] = float(pred)
             
-        features = []
+        building_list = []
         for feature in _buildings_raw['features']:
             try:
-                # Simple Centroid calculation to avoid shapely dependency
                 geom_type = feature['geometry']['type']
                 coords = feature['geometry']['coordinates']
                 
                 if geom_type == 'Polygon':
-                    pts = np.array(coords[0])
+                    poly_coords = coords[0]
+                    pts = np.array(poly_coords)
                     b_lon, b_lat = np.mean(pts, axis=0)
                 elif geom_type == 'MultiPolygon':
-                    pts = np.array(coords[0][0])
+                    poly_coords = coords[0][0]
+                    pts = np.array(poly_coords)
                     b_lon, b_lat = np.mean(pts, axis=0)
                 else: continue
                 
-                # Nearest sector using squared Euclidean distance
                 min_dist = float('inf')
                 sector_name = None
                 for s in sectors:
@@ -920,28 +918,46 @@ def tab_3d_map(hh, comm, models):
                 
                 if mode == "ML Predictions":
                     val = sector_preds.get(sector_name, 100)
-                    feature['properties']['value_type'] = "Prediction"
+                    v_type = "Prediction"
                 else:
                     val = hh_hist.get(sector_name, comm_hist.get(sector_name, 100))
-                    feature['properties']['value_type'] = "Historical"
-                
-                feature['properties']['value'] = round(val, 1)
-                feature['properties']['sector'] = sector_name
-                feature['properties']['elev'] = val / 4
+                    v_type = "Historical"
                 
                 if val > 480: color = [220, 20, 60, 200]
                 elif val > 420: color = [255, 140, 0, 200]
                 elif val > 350: color = [255, 215, 0, 200]
                 else: color = [34, 139, 34, 200]
                 
-                feature['properties']['color'] = color
-                features.append(feature)
+                building_list.append({
+                    'polygon': poly_coords,
+                    'sector': sector_name,
+                    'value': round(val, 1),
+                    'value_type': v_type,
+                    'elev': val * 2, # Increased scaling for better 3D effect
+                    'color': color,
+                    'lon': b_lon,
+                    'lat': b_lat
+                })
             except: continue
             
-        return {"type": "FeatureCollection", "features": features}
+        return building_list
+
+    @st.cache_data
+    def get_road_coordinates(_roads_raw):
+        if not _roads_raw: return []
+        road_list = []
+        for feature in _roads_raw['features']:
+            try:
+                coords = feature['geometry']['coordinates']
+                if feature['geometry']['type'] == 'LineString':
+                    road_list.append({'path': coords})
+                elif feature['geometry']['type'] == 'MultiLineString':
+                    road_list.append({'path': coords[0]})
+            except: continue
+        return road_list
 
     buildings_raw = load_osm_data("buildings_gn.geojson")
-    osm_roads_data = load_osm_data("roads_gn.geojson")
+    roads_raw = load_osm_data("roads_gn.geojson")
 
     st.markdown('<div class="section-title">Geospatial Energy Heatmap (3D)</div>',
                 unsafe_allow_html=True)
@@ -1036,6 +1052,7 @@ def tab_3d_map(hh, comm, models):
             m_num = MONTH_MAP[sel_month]
         
         buildings_data = get_building_data_linked(buildings_raw, hh, comm, models, loc_map, map_mode, m_num)
+        osm_roads_data = get_road_coordinates(roads_raw)
         
         st.markdown("### Layers")
         show_buildings = st.checkbox("Show 3D Building Energy", value=True)
@@ -1070,15 +1087,16 @@ def tab_3d_map(hh, comm, models):
     if show_buildings and buildings_data:
         layers.append(
             pdk.Layer(
-                "GeoJsonLayer",
+                "PolygonLayer",
                 data=buildings_data,
+                get_polygon="polygon",
                 opacity=0.8,
                 stroked=False,
                 filled=True,
                 extruded=True,
                 wireframe=True,
-                get_elevation="properties.elev",
-                get_fill_color="properties.color",
+                get_elevation="elev",
+                get_fill_color="color",
                 get_line_color="[255, 255, 255]",
                 pickable=True,
                 auto_highlight=True,
@@ -1101,13 +1119,12 @@ def tab_3d_map(hh, comm, models):
     if show_osm_roads and osm_roads_data:
         layers.append(
             pdk.Layer(
-                "GeoJsonLayer",
+                "PathLayer",
                 data=osm_roads_data,
+                get_path="path",
                 opacity=0.4,
-                stroked=True,
-                filled=False,
-                line_width_min_pixels=1,
-                get_line_color="[100, 150, 255, 100]",
+                width_min_pixels=1,
+                get_color="[100, 150, 255, 100]",
             )
         )
 
@@ -1139,27 +1156,31 @@ def tab_3d_map(hh, comm, models):
             )
         )
 
-    if show_labels:
+    if show_labels and buildings_data:
+        import pandas as pd
+        # Show only top 20 high consumption zones to reduce clutter
+        label_df = pd.DataFrame(buildings_data).nlargest(20, "value")
+        
         is_dark = st.get_option("theme.base") == "dark"
         layers.append(
             pdk.Layer(
                 "TextLayer",
-                data=df_map,
+                data=label_df,
                 get_position=["lon", "lat"],
-                get_text="Area",
-                get_size=18,
+                get_text="sector",
+                get_size=20,
                 get_color=[255, 255, 255] if is_dark else [20, 20, 20],
                 get_alignment_baseline="'center'",
                 get_text_anchor="'middle'",
                 background=True,
-                get_background_color=[0, 0, 0, 180] if is_dark else [255, 255, 255, 180],
+                get_background_color=[0, 0, 0, 200] if is_dark else [255, 255, 255, 200],
                 billboard=True,
             )
         )
 
     tooltip = {
-        "html": "<b>Area/Sector:</b> {properties.sector}<br/>"
-                "<b>{properties.value_type} Consumption:</b> {properties.value} kWh",
+        "html": "<b>Sector:</b> {sector}<br/>"
+                "<b>{value_type} Consumption:</b> {value} kWh",
         "style": {"backgroundColor": "#1A1A1A", "color": "white", "borderRadius": "8px", "fontSize": "0.9rem"}
     }
 
